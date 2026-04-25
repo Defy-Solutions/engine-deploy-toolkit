@@ -1,0 +1,15 @@
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: vs-_APP_NAME_
+  namespace: _NAMESPACE_
+spec:
+  hosts:
+    - "_ISTIO_FULL_URL_"
+  gateways:
+    - default/_ISTIO_GATEWAY_
+  http:
+    - route:
+        - destination:
+            host: _APP_NAME_
+      timeout: 30s

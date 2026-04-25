@@ -1,0 +1,88 @@
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: _APP_NAME_-secrets
+  namespace: _NAMESPACE_
+spec:
+  refreshInterval: 1m # rate SecretManager pulls GCPSM
+  secretStoreRef:
+    name: secretstore-aws # name of the SecretStore (or kind specified)
+    kind: ClusterSecretStore
+  target:
+    name: _APP_NAME_-secrets # name of the k8s Secret to be created
+    creationPolicy: Owner
+  data:
+    - secretKey: _APP_NAME_-secrets  # name of the GCPSM secret key
+      remoteRef:
+        key: _APP_NAME_-secrets
+
+---
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+ name: _APP_NAME_-configs
+ namespace: _NAMESPACE_
+spec:
+ refreshInterval: 1m # rate SecretManager pulls GCPSM
+ secretStoreRef:
+   name: secretstore-aws # name of the SecretStore (or kind specified)
+   kind: ClusterSecretStore
+ target:
+   name: _APP_NAME_-configs # name of the k8s Secret to be created
+   creationPolicy: Owner
+ data:
+   - secretKey: _APP_NAME_-configs  # name of the GCPSM secret key
+     remoteRef:
+       key: _APP_NAME_-configs
+
+---
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+ name: keda-kafka-secrets-_APP_NAME_
+ namespace: _NAMESPACE_
+spec:
+ refreshInterval: 1m # rate SecretManager pulls GCPSM
+ secretStoreRef:
+   name: secretstore-aws # name of the SecretStore (or kind specified)
+   kind: ClusterSecretStore
+ target:
+   name: keda-kafka-secrets-_APP_NAME_ # name of the k8s Secret to be created
+   creationPolicy: Owner
+ data:
+   - secretKey: username  # name of the GCPSM secret key
+     remoteRef:
+       key: keda-kafka-secrets-_APP_NAME_
+       property: username
+   - secretKey: password
+     remoteRef:
+       key: keda-kafka-secrets-_APP_NAME_
+       property: password
+   - secretKey: tls
+     remoteRef:
+       key: keda-kafka-secrets-_APP_NAME_
+       property: tls
+   - secretKey: sasl
+     remoteRef:
+       key: keda-kafka-secrets-_APP_NAME_
+       property: sasl
+---
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: kafka-trigger-_APP_NAME_-auth
+  namespace: _NAMESPACE_
+spec:
+  secretTargetRef:
+    - key: username
+      name: keda-kafka-secrets-_APP_NAME_
+      parameter: username
+    - key: password
+      name: keda-kafka-secrets-_APP_NAME_
+      parameter: password
+    - key: tls
+      name: keda-kafka-secrets-_APP_NAME_
+      parameter: tls
+    - key: sasl
+      name: keda-kafka-secrets-_APP_NAME_
+      parameter: sasl

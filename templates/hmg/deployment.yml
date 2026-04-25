@@ -1,0 +1,144 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: _APP_NAME_
+  namespace: _NAMESPACE_
+  labels:
+    tags.datadoghq.com/env: "hmg"
+    tags.datadoghq.com/service: "_APP_NAME_"
+    tags.datadoghq.com/version: "_IMAGE_VERSION_"
+spec:
+  selector:
+    matchLabels:
+      app: _APP_NAME_
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "true"
+        proxy.istio.io/config: '{ "holdApplicationUntilProxyStarts": true }'
+      labels:
+        app: _APP_NAME_
+        version: _IMAGE_VERSION_
+        elk: _APP_NAME_
+        tags.datadoghq.com/env: "hmg"
+        tags.datadoghq.com/service: "_APP_NAME_"
+        tags.datadoghq.com/version: "_IMAGE_VERSION_"
+    spec:
+      containers:
+        - name: _APP_NAME_
+          image: "Empresa"/_IMAGE_NAME_:_IMAGE_VERSION_
+          ports:
+            - containerPort: _PORT_
+              protocol: TCP
+          env:
+            - name: DD_AGENT_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: DD_ENV
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['tags.datadoghq.com/env']
+            - name: DD_VERSION
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['tags.datadoghq.com/version']
+            - name: KUBE_ENV
+              value: "hmg"
+            - name: DD_LOGS_INJECTION
+              value: "true"
+          volumeMounts:
+            - mountPath: "/app/secrets"
+              name: _APP_NAME_-secrets #envs-mounted-by-awssm
+              readOnly: true
+            - mountPath: "/app/configs"
+              name: _APP_NAME_-configs #envs-mounted-by-awssm
+              readOnly: true
+          resources:
+            limits:
+              cpu: _LIMITS_CPU_
+              memory: _LIMITS_MEMORY_
+            requests:
+              cpu: _REQUESTS_CPU_
+              memory: _REQUESTS_MEMORY_
+          livenessProbe:
+            httpGet:
+              path: /_HEALTHCHECKLIVE_
+              port: _PORT_
+              scheme: HTTP
+            timeoutSeconds: 60
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
+            initialDelaySeconds: 40
+          readinessProbe:
+            httpGet:
+              path: /_HEALTHCHECKREADY_
+              port: _PORT_
+              scheme: HTTP
+            timeoutSeconds: 60
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
+            initialDelaySeconds: 40
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          imagePullPolicy: IfNotPresent
+      imagePullSecrets:
+        - name: dockerhub.registry
+      dnsConfig:
+        options:
+          - name: ndots
+            value: "2"
+      nodeSelector:
+        Zone: sec
+        Size: _NODE_GROUPS_
+      volumes:
+        - name: _APP_NAME_-secrets #envs-mounted-by-awssm
+          secret:
+            secretName: _APP_NAME_-secrets
+        - name: _APP_NAME_-configs #envs-mounted-by-awssm
+          secret:
+            secretName: _APP_NAME_-configs
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 50%
+      maxSurge: 50%
+  revisionHistoryLimit: 3
+  progressDeadlineSeconds: 600
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: _APP_NAME_
+  namespace: _NAMESPACE_
+spec:
+  maxReplicaCount: _HPA_MAX_
+  minReplicaCount: _HPA_MIN_
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: _APP_NAME_
+  triggers:
+    - metadata:
+        value: '300'
+      metricType: Utilization
+      type: cpu
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: _APP_NAME_
+  namespace: _NAMESPACE_
+  labels:
+    app: _APP_NAME_
+    service: _APP_NAME_
+spec:
+  ports:
+    - name: http
+      port: _PORT_
+  selector:
+    app: _APP_NAME_
