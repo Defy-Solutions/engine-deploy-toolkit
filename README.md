@@ -72,11 +72,14 @@ Definidas no workflow do GitHub Actions:
 | Variavel              | Descricao                                                           |
 |-----------------------|---------------------------------------------------------------------|
 | `ENVIRONMENT`         | `hmg` ou `prd`                                                      |
-| `MICROSERVICE`        | basename do JSON em `./deploy/` (e.g. `metadata.hmg`)               |
+| `MICROSERVICE`        | basename do JSON em `./deploy/` (e.g. `metadata.hmg`) ou nome da app se nao houver arquivo local |
+| `APP_NAME`            | nome da app; opcional quando `MICROSERVICE` ja for o nome da app    |
 | `GIT_BRANCH`          | branch destino no repo IaC (default `master`)                       |
 | `ISTIODEPLOY`         | `true` para incluir manifest Istio simples                          |
 | `ISTIODEPLOYDOUBLE`   | `true` para Istio publico + interno                                 |
 | `MTCLI_GITHUB_API_TOKEN` | token usado pelo PR script (PRD)                                  |
 | `LAST_COMMIT_SHA`     | hash do commit; entra no nome da branch de PR                       |
 
-A pipeline do `epix-envia-ordem-pix-cnab` ja exporta todas elas.
+Os scripts primeiro tentam ler `./deploy/${MICROSERVICE}.json`. Se o arquivo
+nao existir, usam `APP_NAME`; se `APP_NAME` nao existir e `MICROSERVICE` nao
+comecar com `metadata.`, usam `MICROSERVICE` como nome da aplicacao.

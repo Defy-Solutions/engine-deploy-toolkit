@@ -10,6 +10,8 @@
 #   ENVIRONMENT       hmg | prd
 #   GIT_BRANCH        master (default)
 #   MICROSERVICE      basename do arquivo em ./deploy (e.g. "metadata.hmg")
+#                    ou nome da aplicacao se nao houver arquivo ./deploy/*.json
+#   APP_NAME          nome da aplicacao (opcional; fallback para MICROSERVICE)
 #   ISTIODEPLOY       true | false
 #   ISTIODEPLOYDOUBLE true | false
 #   GH_PIPELINE_TOKEN token com permissao de push no repo IaC
@@ -57,13 +59,20 @@ case "$ENVIRONMENT" in
 esac
 IAC_REPO_PATH="$BASE_PATH/$IAC_REPO_NAME"
 
-if [ ! -f "./deploy/${MICROSERVICE}.json" ]; then
-  echo "ERRO: ./deploy/${MICROSERVICE}.json nao encontrado."
+DEPLOY_METADATA="./deploy/${MICROSERVICE}.json"
+if [ -f "$DEPLOY_METADATA" ]; then
+  APP_NAME=$(jq -r '.app_name' "$DEPLOY_METADATA")
+elif [ -n "${APP_NAME:-}" ]; then
+  APP_NAME="$APP_NAME"
+elif [[ "$MICROSERVICE" != metadata.* ]]; then
+  APP_NAME="$MICROSERVICE"
+else
+  echo "ERRO: $DEPLOY_METADATA nao encontrado e APP_NAME nao foi informado."
   exit 1
 fi
-APP_NAME=$(jq -r '.app_name' "./deploy/${MICROSERVICE}.json")
+
 if [ -z "$APP_NAME" ] || [ "$APP_NAME" = "null" ]; then
-  echo "ERRO: campo app_name ausente em ./deploy/${MICROSERVICE}.json."
+  echo "ERRO: app_name ausente. Informe APP_NAME ou use $DEPLOY_METADATA."
   exit 1
 fi
 
