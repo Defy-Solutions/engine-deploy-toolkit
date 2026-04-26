@@ -84,8 +84,6 @@ spec:
           terminationMessagePath: /dev/termination-log
           terminationMessagePolicy: File
           imagePullPolicy: IfNotPresent
-      imagePullSecrets:
-        - name: dockerhub.registry
       dnsConfig:
         options:
           - name: ndots
