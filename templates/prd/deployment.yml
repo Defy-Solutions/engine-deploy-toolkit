@@ -26,7 +26,7 @@ spec:
     spec:
       containers:
         - name: _APP_NAME_
-          image: Empresa/_IMAGE_NAME_:_IMAGE_VERSION_
+          image: /_IMAGE_NAME_:_IMAGE_VERSION_
           ports:
             - containerPort: _PORT_
               protocol: TCP
