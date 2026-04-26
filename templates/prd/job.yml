@@ -1,0 +1,73 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: _APP_NAME_
+  namespace: _NAMESPACE_
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+  labels:
+    tags.datadoghq.com/env: "prd"
+    tags.datadoghq.com/service: "_APP_NAME_"
+    tags.datadoghq.com/version: "_IMAGE_VERSION_"
+spec:
+  backoffLimit: 2
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "false"
+      labels:
+        app: _APP_NAME_
+        version: _IMAGE_VERSION_
+        elk: _APP_NAME_
+        tags.datadoghq.com/env: "prd"
+        tags.datadoghq.com/service: "_APP_NAME_"
+        tags.datadoghq.com/version: "_IMAGE_VERSION_"
+    spec:
+      restartPolicy: OnFailure
+      nodeSelector:
+        Zone: sec
+      containers:
+        - name: _APP_NAME_
+          image: _IMAGE_NAME_:_IMAGE_VERSION_
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: DD_AGENT_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: DD_ENV
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['tags.datadoghq.com/env']
+            - name: DD_VERSION
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['tags.datadoghq.com/version']
+            - name: KUBE_ENV
+              value: "prd"
+            - name: DD_LOGS_INJECTION
+              value: "true"
+          volumeMounts:
+            - mountPath: /app/secrets
+              name: _APP_NAME_-secrets
+              readOnly: true
+          resources:
+            limits:
+              cpu: _LIMITS_CPU_
+              memory: _LIMITS_MEMORY_
+            requests:
+              cpu: _REQUESTS_CPU_
+              memory: _REQUESTS_MEMORY_
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+      volumes:
+        - name: _APP_NAME_-secrets
+          secret:
+            secretName: _APP_NAME_-secrets
+      dnsConfig:
+        options:
+          - name: ndots
+            value: "2"
+      terminationGracePeriodSeconds: 30

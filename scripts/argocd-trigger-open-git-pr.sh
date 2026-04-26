@@ -79,6 +79,17 @@ mkdir -p "$BASE_PATH/manifests"
 
 cp -v "$TOOLKIT_DIR/templates/$ENVIRONMENT/"*.yml "$BASE_PATH/manifests/"
 
+# Detecta tipo de resource (deployment ou job)
+RESOURCE_TYPE=$(jq -r '.resource_type // "deployment"' "$PATH_VARS")
+if [ "$RESOURCE_TYPE" == "job" ]; then
+  echo "Tipo de resource: Job — removendo templates de Deployment."
+  rm -f "$BASE_PATH/manifests/deployment.yml"
+  RESOURCE_FILE="job.yml"
+else
+  rm -f "$BASE_PATH/manifests/job.yml"
+  RESOURCE_FILE="deployment.yml"
+fi
+
 if [ -d "$IAC_REPO_PATH/$APP_NAME/kustomization" ]; then
   cp -v "$IAC_REPO_PATH/$APP_NAME/kustomization/"*.yml "$BASE_PATH/manifests/"
 fi
@@ -86,6 +97,10 @@ fi
 ISTIODEPLOY="${ISTIODEPLOY:-false}"
 ISTIODEPLOYDOUBLE="${ISTIODEPLOYDOUBLE:-false}"
 ISTIO=""
+if [ "$RESOURCE_TYPE" == "job" ]; then
+  ISTIODEPLOY="false"
+  ISTIODEPLOYDOUBLE="false"
+fi
 if [[ "$ISTIODEPLOY" == "false" && "$ISTIODEPLOYDOUBLE" == "false" ]]; then
   cp "$BASE_PATH/manifests/kustomization-no-istio.yml" "$BASE_PATH/manifests/kustomization.yml"
 elif [ "$ISTIODEPLOYDOUBLE" == "true" ]; then
@@ -94,6 +109,11 @@ elif [ "$ISTIODEPLOY" == "true" ]; then
   ISTIO="istio"
 fi
 rm -f "$BASE_PATH/manifests/kustomization-no-istio.yml"
+
+# Ajusta kustomization para referenciar o resource correto (job.yml ou deployment.yml)
+if [ "$RESOURCE_TYPE" == "job" ]; then
+  sed -i 's/deployment\.yml/job.yml/g' "$BASE_PATH/manifests/kustomization.yml"
+fi
 
 extract_var() {
   jq -r --arg k "$1" '.[$k] // ""' "$PATH_VARS"
@@ -165,21 +185,23 @@ elif [ "$ISTIODEPLOYDOUBLE" == "true" ] && [ -f "$ISTIO_DOUBLE_FILE" ]; then
 fi
 
 NODE_GROUPS=$(extract_var "node_groups")
-if [ -n "$NODE_GROUPS" ]; then
-  sed -i "s/_NODE_GROUPS_/$NODE_GROUPS/g" "$BASE_PATH/manifests/deployment.yml"
-else
-  sed -i '/_NODE_GROUPS_/d' "$BASE_PATH/manifests/deployment.yml"
+if [ "$RESOURCE_TYPE" != "job" ]; then
+  if [ -n "$NODE_GROUPS" ]; then
+    sed -i "s/_NODE_GROUPS_/$NODE_GROUPS/g" "$BASE_PATH/manifests/$RESOURCE_FILE"
+  else
+    sed -i '/_NODE_GROUPS_/d' "$BASE_PATH/manifests/$RESOURCE_FILE"
+  fi
 fi
 
 IMAGE_NAME_OVERRIDE=$(extract_var "image_name")
 IMAGE_NAME="${IMAGE_NAME_OVERRIDE:-$APP_NAME}"
-sed -i "s|_IMAGE_NAME_|$IMAGE_NAME|g" "$BASE_PATH/manifests/deployment.yml"
+sed -i "s|_IMAGE_NAME_|$IMAGE_NAME|g" "$BASE_PATH/manifests/$RESOURCE_FILE"
 
 REQUESTS_CPU=$(extract_var "requests_cpu")
-sed -i "s/_REQUESTS_CPU_/${REQUESTS_CPU:-50m}/g" "$BASE_PATH/manifests/deployment.yml"
+sed -i "s/_REQUESTS_CPU_/${REQUESTS_CPU:-50m}/g" "$BASE_PATH/manifests/$RESOURCE_FILE"
 
 REQUESTS_MEMORY=$(extract_var "requests_memory")
-sed -i "s/_REQUESTS_MEMORY_/${REQUESTS_MEMORY:-128Mi}/g" "$BASE_PATH/manifests/deployment.yml"
+sed -i "s/_REQUESTS_MEMORY_/${REQUESTS_MEMORY:-128Mi}/g" "$BASE_PATH/manifests/$RESOURCE_FILE"
 
 # =============================================================================
 # 4. Branch + commit + PR (PRD: sem autonomia, exige aprovacao Minu)
