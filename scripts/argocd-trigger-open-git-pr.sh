@@ -173,7 +173,7 @@ fi
 
 IMAGE_NAME_OVERRIDE=$(extract_var "image_name")
 IMAGE_NAME="${IMAGE_NAME_OVERRIDE:-$APP_NAME}"
-sed -i "s/_IMAGE_NAME_/$IMAGE_NAME/g" "$BASE_PATH/manifests/deployment.yml"
+sed -i "s|_IMAGE_NAME_|$IMAGE_NAME|g" "$BASE_PATH/manifests/deployment.yml"
 
 REQUESTS_CPU=$(extract_var "requests_cpu")
 sed -i "s/_REQUESTS_CPU_/${REQUESTS_CPU:-50m}/g" "$BASE_PATH/manifests/deployment.yml"
