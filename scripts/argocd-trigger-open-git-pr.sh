@@ -90,6 +90,17 @@ else
   RESOURCE_FILE="deployment.yml"
 fi
 
+# mTLS opt-in por app (porta dedicada 8443 via Tomcat, ver MtlsConfig da
+# aplicacao). So Deployments podem habilitar; Jobs nao expoem porta.
+MTLS_ENABLED=$(jq -r '.mtls_enabled // "false"' "$PATH_VARS")
+if [ "$RESOURCE_TYPE" != "job" ] && [ "$MTLS_ENABLED" == "true" ]; then
+  echo "mTLS habilitado para $APP_NAME — usando deployment-mtls.yml / istio-mtls.yml."
+  mv -f "$BASE_PATH/manifests/deployment-mtls.yml" "$BASE_PATH/manifests/deployment.yml"
+  mv -f "$BASE_PATH/manifests/istio-mtls.yml" "$BASE_PATH/manifests/istio.yml"
+else
+  rm -f "$BASE_PATH/manifests/deployment-mtls.yml" "$BASE_PATH/manifests/istio-mtls.yml"
+fi
+
 if [ -d "$IAC_REPO_PATH/$APP_NAME/kustomization" ]; then
   cp -v "$IAC_REPO_PATH/$APP_NAME/kustomization/"*.yml "$BASE_PATH/manifests/"
 fi
@@ -135,6 +146,8 @@ declare -A VARS=(
   [ISTIO_GATEWAY]="istio_gateway"
   [ISTIO_INTERNAL_URL]="istio_internal_url"
   [INTERNAL_ISTIO_GATEWAY]="internal_istio_gateway"
+  [MTLS_TLS_PORT]="mtls_tls_port"
+  [MTLS_GATEWAY_SECONDARY]="mtls_gateway_secondary"
 )
 for key in "${!VARS[@]}"; do
   export "$key"=$(extract_var "${VARS[$key]}")
@@ -159,6 +172,8 @@ declare -A SUBSTITUTIONS=(
   [_PORT_]="$PORT"
   [_IMAGE_VERSION_]="$IMAGE_VERSION"
   [_ISTIO_FULL_URL_]="$ISTIO_FULL_URL"
+  [_MTLS_TLS_PORT_]="$MTLS_TLS_PORT"
+  [_MTLS_GATEWAY_SECONDARY_]="$MTLS_GATEWAY_SECONDARY"
 )
 for k in "${!SUBSTITUTIONS[@]}"; do
   find "$BASE_PATH/manifests" -type f -name "*.yml" -exec sed -i "s|$k|${SUBSTITUTIONS[$k]}|g" {} +

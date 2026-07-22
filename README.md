@@ -57,13 +57,48 @@ engine-deploy-toolkit/
     ├── hmg/
     │   ├── awssm.yml                # ExternalSecret (AWS Secrets Manager)
     │   ├── deployment.yml           # Deployment + KEDA ScaledObject + Service
+    │   ├── deployment-mtls.yml      # variante com porta 8443 + Service mtls (opt-in)
     │   ├── istio.yml                # VirtualService + Gateway
+    │   ├── istio-mtls.yml           # variante com listener TLS passthrough (opt-in)
     │   ├── istio-double.yml         # VirtualService duplo (publico + interno)
     │   ├── kustomization.yml        # com Istio
     │   └── kustomization-no-istio.yml
     └── prd/
         └── ... (mesmo set, valores ajustados para PRD)
 ```
+
+## mTLS (opt-in por app)
+
+Alguns apps expõem um endpoint `/api/v2` autenticado por certificado de
+cliente (mTLS) numa porta Tomcat dedicada (8443), além do HTTP normal na
+`_PORT_`. Isso **não é o padrão** — só é ativado quando o app pede
+explicitamente, para não afetar os demais projetos que usam este toolkit.
+
+Para habilitar, adicione no `metadata.json` do app (dentro do repo
+`iac-engine-pix-k8s-<env>/<app_name>/metadata.json`):
+
+```json
+{
+  "mtls_enabled": true,
+  "mtls_tls_port": 9443,
+  "mtls_gateway_secondary": "k8s-hmg-internal-gateway-2"
+}
+```
+
+- `mtls_enabled` — se `true`, o script troca `deployment.yml`/`istio.yml`
+  pelas variantes `deployment-mtls.yml`/`istio-mtls.yml` antes de renderizar.
+  Padrão `false` (nenhuma mudança de comportamento para quem não define).
+- `mtls_tls_port` — porta do listener `PASSTHROUGH` no Gateway da infra
+  (usada no `tls.match.port` do VirtualService).
+- `mtls_gateway_secondary` — Gateway resource (namespace `default`) que
+  carrega esse listener, adicionado à lista de `gateways` do VirtualService
+  junto com o `istio_gateway` já existente.
+
+A variante `deployment-mtls.yml` adiciona a porta de container 8443, a
+annotation `traffic.sidecar.istio.io/excludeInboundPorts: "8443"` e a porta
+`mtls` no Service. A variante `istio-mtls.yml` adiciona o bloco `tls` de
+passthrough e bloqueia `/api/v2` em HTTP puro (retorna 421). Jobs não podem
+habilitar mTLS (não expõem porta de serviço).
 
 ## Variaveis esperadas pelos scripts
 

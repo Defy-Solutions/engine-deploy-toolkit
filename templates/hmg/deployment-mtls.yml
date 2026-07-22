@@ -1,0 +1,159 @@
+kind: Deployment
+apiVersion: apps/v1
+metadata:
+  name: _APP_NAME_
+  namespace: _NAMESPACE_
+  labels:
+    tags.datadoghq.com/env: "hmg"
+    tags.datadoghq.com/service: "_APP_NAME_"
+    tags.datadoghq.com/version: "_IMAGE_VERSION_"
+spec:
+  selector:
+    matchLabels:
+      app: _APP_NAME_
+  template:
+    metadata:
+      annotations:
+        sidecar.istio.io/inject: "true"
+        proxy.istio.io/config: '{ "holdApplicationUntilProxyStarts": true }'
+        # mTLS termina no Tomcat (porta 8443). Sem esta exclusao o sidecar
+        # intercepta a 8443 e tenta mTLS de mesh, quebrando o handshake do
+        # certificado do cliente.
+        traffic.sidecar.istio.io/excludeInboundPorts: "8443"
+      labels:
+        app: _APP_NAME_
+        version: _IMAGE_VERSION_
+        elk: _APP_NAME_
+        tags.datadoghq.com/env: "hmg"
+        tags.datadoghq.com/service: "_APP_NAME_"
+        tags.datadoghq.com/version: "_IMAGE_VERSION_"
+    spec:
+      containers:
+        - name: _APP_NAME_
+          image: _IMAGE_NAME_:_IMAGE_VERSION_
+          ports:
+            - containerPort: _PORT_
+              protocol: TCP
+            - containerPort: 8443
+              protocol: TCP
+          env:
+            - name: DD_AGENT_HOST
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.hostIP
+            - name: DD_ENV
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['tags.datadoghq.com/env']
+            - name: DD_VERSION
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['tags.datadoghq.com/version']
+            - name: KUBE_ENV
+              value: "hmg"
+            - name: DD_LOGS_INJECTION
+              value: "true"
+          volumeMounts:
+            - mountPath: "/app/secrets"
+              name: _APP_NAME_-secrets #envs-mounted-by-awssm
+              readOnly: true
+            - mountPath: "/app/configs"
+              name: _APP_NAME_-configs #envs-mounted-by-awssm
+              readOnly: true
+          resources:
+            limits:
+              cpu: _LIMITS_CPU_
+              memory: _LIMITS_MEMORY_
+            requests:
+              cpu: _REQUESTS_CPU_
+              memory: _REQUESTS_MEMORY_
+          livenessProbe:
+            httpGet:
+              path: /_HEALTHCHECKLIVE_
+              port: _PORT_
+              scheme: HTTP
+            timeoutSeconds: 60
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
+            initialDelaySeconds: 180
+          readinessProbe:
+            httpGet:
+              path: /_HEALTHCHECKREADY_
+              port: _PORT_
+              scheme: HTTP
+            timeoutSeconds: 60
+            periodSeconds: 10
+            successThreshold: 1
+            failureThreshold: 3
+            initialDelaySeconds: 180
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          imagePullPolicy: IfNotPresent
+      dnsConfig:
+        options:
+          - name: ndots
+            value: "2"
+      nodeSelector:
+        Zone: sec
+        Size: _NODE_GROUPS_
+      volumes:
+        - name: _APP_NAME_-secrets #envs-mounted-by-awssm
+          secret:
+            secretName: _APP_NAME_-secrets
+        - name: _APP_NAME_-configs #envs-mounted-by-awssm
+          secret:
+            secretName: _APP_NAME_-configs
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 50%
+      maxSurge: 50%
+  revisionHistoryLimit: 3
+  progressDeadlineSeconds: 600
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: _APP_NAME_
+  namespace: _NAMESPACE_
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: _APP_NAME_
+  minReplicas: _HPA_MIN_
+  maxReplicas: _HPA_MAX_
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          # scale up if usage is above
+          # 99% of the requested CPU (100m)
+          averageUtilization: 65
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: _APP_NAME_
+  namespace: _NAMESPACE_
+  labels:
+    app: _APP_NAME_
+    service: _APP_NAME_
+spec:
+  ports:
+    - name: http
+      port: _PORT_
+    # appProtocol tls: o Istio nao deve interpretar o trafego desta porta
+    # como HTTP — sao bytes TLS cifrados (passthrough ate o Tomcat, que
+    # termina mTLS).
+    - name: mtls
+      port: 8443
+      targetPort: 8443
+      appProtocol: tls
+  selector:
+    app: _APP_NAME_
