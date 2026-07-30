@@ -175,7 +175,11 @@ declare -A SUBSTITUTIONS=(
   [_MTLS_TLS_PORT_]="$MTLS_TLS_PORT"
   [_MTLS_GATEWAY_SECONDARY_]="$MTLS_GATEWAY_SECONDARY"
 )
-for k in "${!SUBSTITUTIONS[@]}"; do
+# Substitui do placeholder mais longo para o mais curto. Alguns placeholders
+# sao substring de outros (_PORT_ dentro de _MTLS_TLS_PORT_); na ordem de hash
+# do bash o menor vinha primeiro e corrompia o maior, gerando lixo do tipo
+# "_MTLS_TLS8081" no istio.yml. Ordenar por tamanho decrescente elimina isso.
+for k in $(printf '%s\n' "${!SUBSTITUTIONS[@]}" | awk '{ print length, $0 }' | sort -rn | cut -d' ' -f2-); do
   find "$BASE_PATH/manifests" -type f -name "*.yml" -exec sed -i "s|$k|${SUBSTITUTIONS[$k]}|g" {} +
 done
 
